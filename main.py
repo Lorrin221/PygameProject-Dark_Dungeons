@@ -8,17 +8,17 @@ door = None
 treasures = {}
 map_list = []
 fps = 30
-note_dict = {'1': ['Message 1'],
-             '2': ['Message 2'],
-             '3': ['Message 3'],
-             '4': ['Message 4'],
-             '5': ['Message 5']}
+note_dict = {'1': ['Подземелье?', 'Я не понял, как попал сюда, в место страданий и разочарований... '],
+             '2': ['Золото', 'Они меня преследуют повсюду... эти сокровища мутят мой разум'],
+             '3': ['Двери', 'Дверь такая скрипучая... Надеюсь, никто здесь не живет...'],
+             '4': ['Чувство страха', 'Зачем я тут? По чьей воле?'],
+             '5': ['Побег', 'Я смог найти выход отсюда... но стало слишком поздно']}
 notes = []
-notes_opened = {1: False,
-                2: False,
-                3: False,
-                4: False,
-                5: False}
+notes_opened = {'1': False,
+                '2': False,
+                '3': False,
+                '4': False,
+                '5': False}
 clock = pygame.time.Clock()
 
 
@@ -234,13 +234,15 @@ class Note(pygame.sprite.Sprite):
         self.image = note_image
         self.rect = self.image.get_rect().move(
             tile_width * pos_x, tile_height * pos_y)
+        self.sound = pygame.mixer.Sound('data/achievement.ogg')
 
     def collected(self, player):
         global notes_opened
         if player.x == self.x and player.y == self.y:
             self.kill()
             self.bool = False
-            notes_opened[self.key] = True
+            notes_opened[str(self.key)] = True
+            self.sound.play()
 
 
 def load_level(filename):
@@ -297,6 +299,7 @@ def terminate():
 
 
 def start_screen():
+    pygame.display.set_caption('Dark Dungeons')
     clock = pygame.time.Clock()
     intro_text = ["DARK DUNGEONS", "",
                   "Вы оказались в темном, очень темном подземелии...",
@@ -339,8 +342,8 @@ def run_level(level_name):
     map_list = []
     player = None
     f = pygame.font.Font(None, 20)
-    level = load_level(level_name)
     level_complete = False
+    level = load_level(level_name)
     player, level_x, level_y, map_list = generate_level(level)
     size = WIDTH, HEIGHT = (level_x + 1) * 50, (level_y + 1) * 50
     screen = pygame.display.set_mode(size)
@@ -393,7 +396,6 @@ def run_level(level_name):
         text1 = f.render(f'Зал {level_name[6]}', True, 'white')
         place1 = text.get_rect(
             center=(100, 50))
-        screen.fill('white')
         tiles_group.draw(screen)
         player_group.draw(screen)
         treasure_group.draw(screen)
@@ -443,12 +445,12 @@ def messages_screen():
             x, y = pygame.mouse.get_pos()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 for i in coords:
-                    if i[0] <= x <= i[1] and 50 <= y <= 130 and notes_opened[coords.index(i) + 1]:
-                        message_screen(coords.index(i) + 1, screen)
+                    if i[0] <= x <= i[1] and 50 <= y <= 130 and notes_opened[str(coords.index(i) + 1)]:
+                        message_screen(str(coords.index(i) + 1), screen)
 
         for x in range(5):
             draw_square(screen, x * 100, 50)
-            if not (notes_opened[x + 1]):
+            if not (notes_opened[str(x + 1)]):
                 screen.blit(image, (x * 100 + 20, 50))
 
         pygame.display.flip()
@@ -486,7 +488,7 @@ def message_screen(n, screen):
 def end_screen():
     clock = pygame.time.Clock()
     size = WIDTH, HEIGHT = 900, 450
-    intro_text = ["КОНЕЦ ИГРЫ",
+    outro_text = ["КОНЕЦ ИГРЫ",
                   "НАЖМИТЕ F ДЛЯ ПРОСМОТРА СОБРАННЫХ ЗАПИСОК"]
     fon = pygame.transform.scale(load_image('fon.jpg'), (WIDTH, HEIGHT))
     f = False
@@ -494,14 +496,14 @@ def end_screen():
     screen.blit(fon, (0, 0))
     font = pygame.font.Font(None, 30)
     text_coord = 50
-    for line in intro_text:
+    for line in outro_text:
         string_rendered = font.render(line, 1, pygame.Color('white'))
-        intro_rect = string_rendered.get_rect()
+        outro_rect = string_rendered.get_rect()
         text_coord += 10
-        intro_rect.top = text_coord
-        intro_rect.x = 10
-        text_coord += intro_rect.height
-        screen.blit(string_rendered, intro_rect)
+        outro_rect.top = text_coord
+        outro_rect.x = 10
+        text_coord += outro_rect.height
+        screen.blit(string_rendered, outro_rect)
     running = True
     while running:
         for event in pygame.event.get():
@@ -510,7 +512,6 @@ def end_screen():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_f:
                     f = True
-                    print('OK')
                     running = False
                 else:
                     return
@@ -531,7 +532,6 @@ if __name__ == '__main__':
     size = WIDTH, HEIGHT = 1000, 550
     screen = pygame.display.set_mode(size)
     start_screen()
-    run_level('level_1.txt')
-    run_level('level_2.txt')
-    run_level('level_3.txt')
+    for i in range(1, 4):
+        run_level(f'level_{i}.txt')
     end_screen()
