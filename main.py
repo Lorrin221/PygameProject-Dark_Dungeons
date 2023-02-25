@@ -8,6 +8,17 @@ door = None
 treasures = {}
 map_list = []
 fps = 30
+note_dict = {'1': ['Message 1'],
+             '2': ['Message 2'],
+             '3': ['Message 3'],
+             '4': ['Message 4'],
+             '5': ['Message 5']}
+notes = []
+notes_opened = {1: False,
+                2: False,
+                3: False,
+                4: False,
+                5: False}
 clock = pygame.time.Clock()
 
 
@@ -27,6 +38,7 @@ tiles_group = pygame.sprite.Group()
 player_group = pygame.sprite.Group()
 treasure_group = pygame.sprite.Group()
 door_group = pygame.sprite.Group()
+note_group = pygame.sprite.Group()
 FPS = 50
 tile_images = {
     'wall': load_image('wall.png'),
@@ -35,6 +47,7 @@ tile_images = {
 player_image = load_image('Mary_front.png')
 treasure_image = load_image('treasure.png')
 door_image = load_image('door.png')
+note_image = load_image('note.jpg')
 tile_width = tile_height = 50
 
 level_complete = False
@@ -211,6 +224,25 @@ class Door(pygame.sprite.Sprite):
             self.kill()
 
 
+class Note(pygame.sprite.Sprite):
+    def __init__(self, pos_x, pos_y, key):
+        super().__init__(all_sprites, note_group)
+        self.x = pos_x
+        self.y = pos_y
+        self.key = key
+        self.bool = True
+        self.image = note_image
+        self.rect = self.image.get_rect().move(
+            tile_width * pos_x, tile_height * pos_y)
+
+    def collected(self, player):
+        global notes_opened
+        if player.x == self.x and player.y == self.y:
+            self.kill()
+            self.bool = False
+            notes_opened[self.key] = True
+
+
 def load_level(filename):
     filename = "data/" + filename
     # читаем уровень, убирая символы перевода строки
@@ -226,6 +258,8 @@ def load_level(filename):
 
 def generate_level(level):
     global door
+    global notes
+    notes = []
     new_player, x, y = None, None, None
     for y in range(len(level)):
         arr = []
@@ -248,6 +282,10 @@ def generate_level(level):
                 arr.append(Tile('empty', x, y))
                 door = Door(x, y)
                 arr[x].set_color()
+            elif level[y][x].isdigit():
+                arr.append(Tile('empty', x, y))
+                notes.append(Note(x, y, level[y][x]))
+                arr[x].set_color()
         map_list.append(arr)
     # вернем игрока, а также размер поля в клетках
     return new_player, x, y, map_list
@@ -265,7 +303,8 @@ def start_screen():
                   "Подземелье состоит из 3 залов, а каждый зал - из коридоров.",
                   "В каждом зале есть сокровища",
                   "Ваша задача - забрать все сокровища и выйти из подземелья",
-                  "Вы можете видеть только объекты рядом."]
+                  "Вы можете видеть только объекты рядом.",
+                  "НАЖМИТЕ ЛЮБУЮ КНОПКУ ДЛЯ НАЧАЛА ИГРЫ"]
 
     fon = pygame.transform.scale(load_image('fon.jpg'), (WIDTH, HEIGHT))
     screen.blit(fon, (0, 0))
@@ -304,7 +343,6 @@ def run_level(level_name):
     level_complete = False
     player, level_x, level_y, map_list = generate_level(level)
     size = WIDTH, HEIGHT = (level_x + 1) * 50, (level_y + 1) * 50
-    print(size)
     screen = pygame.display.set_mode(size)
     if player.x - 1 >= 0:
         map_list[player.y][player.x - 1].set_image()
@@ -351,25 +389,37 @@ def run_level(level_name):
                         level_complete = False
         text = f.render(f'Осталось сундуков: {list(treasures.values()).count(True)}', True, 'white')
         place = text.get_rect(
+            center=(100, 100))
+        text1 = f.render(f'Зал {level_name[6]}', True, 'white')
+        place1 = text.get_rect(
             center=(100, 50))
         screen.fill('white')
         tiles_group.draw(screen)
         player_group.draw(screen)
         treasure_group.draw(screen)
         door_group.draw(screen)
+        note_group.draw(screen)
         for x in treasures:
             x.kill()
             if abs(x.x - player.x) <= 1 and abs(x.y - player.y) <= 1 and treasures[x]:
                 x.add(treasure_group)
-            if x.x - player.x == 0 and x.y - player.y == 0:
+            if x.x - player.x == 0 and x.y - player.y == 0 and treasures[x]:
                 x.kill()
                 treasures[x] = False
+                pygame.mixer.Sound('data/treasure-achieved.wav').play()
         door.kill()
         if abs(door.x - player.x) <= 1 and abs(door.y - player.y) <= 1 and not (door.bool):
             door.add(door_group)
         screen.blit(text, place)
+        screen.blit(text1, place1)
         if True not in treasures.values() and not (door.bool):
             door.open()
+        for x in notes:
+            x.kill()
+            if abs(player.x - x.x) <= 1 and abs(player.y - x.y) <= 1 and x.bool:
+                x.add(note_group)
+            if player.x == x.x and player.y == x.y and x.bool:
+                x.collected(player)
         pygame.display.flip()
         clock.tick(fps)
     pygame.mixer.music.stop()
@@ -379,11 +429,67 @@ def run_level(level_name):
     return
 
 
+def messages_screen():
+    size = WIDTH, HEIGHT = 550, 300
+    screen = pygame.display.set_mode(size)
+    screen.fill((0, 0, 255))
+    image = load_image('lock.jpg')
+    running = True
+    coords = [(20, 100), (120, 200), (220, 300), (320, 400), (420, 500)]
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            x, y = pygame.mouse.get_pos()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                for i in coords:
+                    if i[0] <= x <= i[1] and 50 <= y <= 130 and notes_opened[coords.index(i) + 1]:
+                        message_screen(coords.index(i) + 1, screen)
+
+        for x in range(5):
+            draw_square(screen, x * 100, 50)
+            if not (notes_opened[x + 1]):
+                screen.blit(image, (x * 100 + 20, 50))
+
+        pygame.display.flip()
+
+
+def message_screen(n, screen):
+    global note_dict
+    screen.fill((0, 0, 255))
+    font = pygame.font.Font(None, 30)
+    text_coord = 50
+    text = note_dict[n]
+    text.append('НАЖМИТЕ ЛЮБУЮ КНОПКУ ДЛЯ СКРЫТИЯ ЗАПИСКИ')
+    for line in text:
+        string_rendered = font.render(line, 1, pygame.Color('white'))
+        intro_rect = string_rendered.get_rect()
+        text_coord += 10
+        intro_rect.top = text_coord
+        intro_rect.x = 10
+        text_coord += intro_rect.height
+        screen.blit(string_rendered, intro_rect)
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                terminate()
+            elif event.type == pygame.KEYDOWN or \
+                    event.type == pygame.MOUSEBUTTONDOWN:
+                screen.fill((0, 0, 255))
+                text.pop()
+                return
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
 def end_screen():
-    pygame.init()
     clock = pygame.time.Clock()
-    intro_text = ["КОНЕЦ ИГРЫ"]
+    size = WIDTH, HEIGHT = 900, 450
+    intro_text = ["КОНЕЦ ИГРЫ",
+                  "НАЖМИТЕ F ДЛЯ ПРОСМОТРА СОБРАННЫХ ЗАПИСОК"]
     fon = pygame.transform.scale(load_image('fon.jpg'), (WIDTH, HEIGHT))
+    f = False
     screen = pygame.display.set_mode(size)
     screen.blit(fon, (0, 0))
     font = pygame.font.Font(None, 30)
@@ -396,16 +502,28 @@ def end_screen():
         intro_rect.x = 10
         text_coord += intro_rect.height
         screen.blit(string_rendered, intro_rect)
-
-    while True:
+    running = True
+    while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
-            elif event.type == pygame.KEYDOWN or \
-                    event.type == pygame.MOUSEBUTTONDOWN:
-                return  # начинаем игру
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_f:
+                    f = True
+                    print('OK')
+                    running = False
+                else:
+                    return
         pygame.display.flip()
         clock.tick(FPS)
+    if f:
+        messages_screen()
+
+
+def draw_square(screen, x, y):
+    color = pygame.Color(50, 150, 50)
+    pygame.draw.rect(screen, color,
+                     (x + 20, 50, 80, 80), 0)
 
 
 if __name__ == '__main__':
@@ -415,4 +533,5 @@ if __name__ == '__main__':
     start_screen()
     run_level('level_1.txt')
     run_level('level_2.txt')
+    run_level('level_3.txt')
     end_screen()
